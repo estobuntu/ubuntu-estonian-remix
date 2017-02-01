@@ -11,6 +11,9 @@ if [ "$(id -u)" != "0" ]; then
    exit 1
 fi
 
+#local apt-cacher-ng url
+proxy_url="http://127.0.0.1:3142"
+
 #input ISO file 
 export iso_file=ubuntu-16.04.1-desktop-amd64.iso
 
@@ -33,7 +36,8 @@ options=(ID "Install Estonian ID Software" on    # any option can be set to defa
          EST "Filosoft speller for LibreOffice and Estonian langpakcs" on
          LO "Newest LibreOffice software" off
          MATE "Set MATE as desktop environment (remove Unity)" off
-	 EXTRA "Video players, codecs, for kids etc" off)
+	 EXTRA "Video players, codecs, for kids etc" off
+	 PROXY "Use local apt-cacher-ng proxy" off)
 choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
 clear
 for choice in $choices
@@ -53,6 +57,9 @@ do
             ;;
         EXTRA)
             EXTRA=1
+            ;;
+        PROXY)
+            PROXY=1
             ;;
     esac
 done
@@ -155,7 +162,6 @@ service dbus start
 
 #configure connectivity
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
-echo "Acquire::http { Proxy \"http://127.0.0.1:3142\"; };" > /etc/apt/apt.conf.d/00proxy
 
 #add repositories
 cat >> /etc/apt/sources.list.d/estmix.list <<EOF
@@ -215,7 +221,7 @@ ENDSCRIPT
 cat > edit/tmp/cleanup.sh << ENDSCRIPT
 # Cleanups
 echo "" > /etc/resolv.conf
-rm /etc/apt/apt.conf.d/00proxy
+rm -f /etc/apt/apt.conf.d/00proxy
 apt-get clean
 
 rm -rf /tmp/*
@@ -233,6 +239,12 @@ ENDSCRIPT
 chmod +x edit/tmp/*.sh
 
 chroot edit ./tmp/prepare.sh
+
+if [[ $PROXY ]]
+then
+   echo "Acquire::http { Proxy \"${proxy_url}\"; };" >> edit/etc/apt/apt.conf.d/00proxy
+   echo "Acquire::https { Proxy \"${proxy_url}\"; };" >> edit/etc/apt/apt.conf.d/00proxy
+fi
 
 if [[ $ID ]] 
 then
