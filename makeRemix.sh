@@ -3,7 +3,6 @@
 #
 # based on Finnish remix http://bazaar.launchpad.net/~timo-jyrinki/ubuntu-fi-remix/main/files
 #
-#
 # License CC-BY-SA 3.0: http://creativecommons.org/licenses/by-sa/3.0/
 
 # Make sure only root can run our script
@@ -15,28 +14,49 @@ fi
 #input ISO file 
 export iso_file=ubuntu-16.04.1-desktop-amd64.iso
 
-#options lubuntu-desktop ubuntu-mate-desktop kubuntu-desktop xubuntu-desktop ubuntu-gnome-desktop edubuntu-desktop-gnome ubuntustudio-desktop
-export install_desktop="ubuntu-mate-desktop"
-
 #output ISO file
-export output_file=${install_desktop}-16.04.1-amd64-estremix.iso
+export output_file=ubuntu-16.04.1-amd64-estremix.iso
 
 #visible name of the disk in file explorer
 export IMAGE_NAME="Ubuntu Estonian Remix 16.04.1 LTS amd64"
-
-echo 
-echo Ubuntu - Estonian CD remix creation
-echo License CC-BY-SA 3.0: http://creativecommons.org/licenses/by-sa/3.0/
-echo
-echo "expecting following input ISO files: $iso_file "
-echo
-echo "generating $output_file"
-echo
 
 if [ ! -f $iso_file ]; then
   echo No input ISO file. 
   exit
 fi
+
+dialog --title "Ubuntu - Estonian CD remix creation" --msgbox "\nexpecting following input ISO files: $iso_file\n\noutput will be: $output_file" 22 76
+
+
+cmd=(dialog --separate-output --checklist "Select remix options:" 22 76 16)
+options=(ID "Install Estonian ID Software" on    # any option can be set to default to "on"
+         EST "Filosoft speller for LibreOffice and Estonian langpakcs" on
+         LO "Newest LibreOffice software" off
+         MATE "Set MATE as desktop environment (remove Unity)" off
+	 EXTRA "Video players, codecs, for kids etc" off)
+choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
+clear
+for choice in $choices
+do
+    case $choice in
+        ID)
+            ID=1
+            ;;
+        LO)
+            LO=1
+            ;;
+        EST)
+            EST=1
+            ;;
+        MATE)
+            MATE=1
+            ;;
+        EXTRA)
+            EXTRA=1
+            ;;
+    esac
+done
+
 
 
 echo "removing old directories"
@@ -60,24 +80,7 @@ cp oofslinget-addon-estobuntu_4.1-0_all.deb edit/tmp/
 #cp splash.pcx extract-cd/isolinux/splash.pcx
 
 echo Chrooting and executing upgrade tasks
-cat > edit/tmp/modifyDisk.sh << ENDSCRIPT
-#!/bin/bash -e
-mount -t proc none /proc
-mount -t sysfs none /sys
-mount -t devpts none /dev/pts
-export HOME=/root
-export LC_ALL=C
-#needed for some package installation
-service dbus start
-
-# Installing the wanted language support, optionally first removing non-wanted 
-# packages. 
-apt-get remove --purge -y language-pack-bn language-pack-bn-base language-pack-gnome-bn language-pack-gnome-bn-base language-pack-es language-pack-es-base language-pack-gnome-es language-pack-gnome-es-base language-pack-pt language-pack-pt-base language-pack-gnome-pt language-pack-gnome-pt-base language-pack-xh language-pack-xh-base language-pack-gnome-xh language-pack-gnome-xh-base language-pack-hi language-pack-hi-base language-pack-gnome-hi language-pack-gnome-hi-base language-pack-de language-pack-de-base language-pack-fr language-pack-fr-base language-pack-gnome-de language-pack-gnome-de-base language-pack-gnome-fr language-pack-gnome-fr-base firefox-locale-bn firefox-locale-de firefox-locale-es firefox-locale-pt language-pack-gnome-zh-hans language-pack-gnome-zh-hans-base language-pack-zh-hans language-pack-zh-hans-base firefox-locale-zh-hans
-
-#configure connectivity
-echo "nameserver 8.8.8.8" > /etc/resolv.conf
-echo "Acquire::http { Proxy \"http://127.0.0.1:3142\"; };" > /etc/apt/apt.conf.d/00proxy
-
+cat > edit/tmp/addID.sh << ENDSCRIPT
 #add ID-card repository GPG key
 apt-key add <<EOF
 -----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -133,9 +136,29 @@ K2czbpReKw==
 =aSyh
 -----END PGP PUBLIC KEY BLOCK-----
 EOF
+cat >> /etc/apt/sources.list.d/estID.list <<EOF
+deb https://installer.id.ee/media/ubuntu/ xenial main
+EOF
+apt update
+#install Estonian ID-card packages
+apt install -y open-eid
+ENDSCRIPT
+cat > edit/tmp/prepare.sh << ENDSCRIPT
+#!/bin/bash -e
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devpts none /dev/pts
+export HOME=/root
+export LC_ALL=C
+#needed for some package installation
+service dbus start
+
+#configure connectivity
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+echo "Acquire::http { Proxy \"http://127.0.0.1:3142\"; };" > /etc/apt/apt.conf.d/00proxy
+
 #add repositories
 cat >> /etc/apt/sources.list.d/estmix.list <<EOF
-deb https://installer.id.ee/media/ubuntu/ xenial main
 deb http://ftp.estpak.ee/pub/ubuntu/ xenial universe
 deb http://ftp.estpak.ee/pub/ubuntu/ xenial-updates universe
 deb http://ftp.estpak.ee/pub/ubuntu/ xenial multiverse
@@ -148,56 +171,48 @@ EOF
 #update package lists
 apt update
 
+ENDSCRIPT
+
+cat > edit/tmp/libreoffice.sh << ENDSCRIPT
+
+#newest libreoffice
+add-apt-repository -y ppa:libreoffice/ppa && apt-get update && apt-get -y dist-upgrade && apt-get -y install libreoffice libreoffice-help-et libreoffice-l10n-et libreoffice-pdfimport libreoffice-nlpsolver libreoffice-ogltrans libreoffice-report-builder libreoffice-style-galaxy libreoffice-templates && apt-get -y remove libreoffice-style-tango && ldconfig && dpkg --configure -a && apt-get clean
+ENDSCRIPT
+
+
+cat > edit/tmp/estonian_packages.sh << ENDSCRIPT
+# Estonian (basic support)
+apt install -y language-pack-et language-pack-et-base language-pack-gnome-et language-pack-gnome-et-base libreoffice-l10n-et firefox-locale-et libreoffice-help-et thunderbird-locale-et libreoffice-java-common
+dpkg -i tmp/oofslinget-addon-estobuntu_4.1-0_all.deb
+ENDSCRIPT
+
+cat > edit/tmp/mate.sh << ENDSCRIPT
 #remove Unity and accompaning packages
 apt install -y tasksel
 apt purge -y unity* compiz* gnome* ubuntuone* accountsservice-*
-tasksel install ${install_desktop}
+#remove some privacy concerned packages
+apt -y autoremove --purge activity-log-manager-common python-zeitgeist rhythmbox-plugin-zeitgeist zeitgeist zeitgeist-core zeitgeist-datahub
+tasksel install ubuntu-mate-desktop
 apt -y autoremove
 
 #install MATE
 #apt install -y ubuntu-mate-desktop
+ENDSCRIPT
 
-#install Estonian ID-card packages
-apt install -y open-eid
-
-#remove some privacy concerned packages
-apt -y autoremove --purge activity-log-manager-common python-zeitgeist rhythmbox-plugin-zeitgeist zeitgeist zeitgeist-core zeitgeist-datahub
-
-#newest libreoffice
-add-apt-repository -y ppa:libreoffice/ppa && apt-get update && apt-get -y dist-upgrade && apt-get -y install libreoffice libreoffice-help-et libreoffice-l10n-et libreoffice-pdfimport libreoffice-nlpsolver libreoffice-ogltrans libreoffice-report-builder libreoffice-style-galaxy libreoffice-templates && apt-get -y remove libreoffice-style-tango && ldconfig && dpkg --configure -a && apt-get clean
-
+cat > edit/tmp/extra.sh << ENDSCRIPT
 #extra packages, like mediaplayer packages, browser and gimp
 apt -y install libdvdcss2 vlc mplayer mplayer-fonts smplayer smtube smplayer-themes smplayer-l10n cups-pdf gimp gimp-data-extras inkscape chromium-browser chromium-browser-l10n chromium-codecs-ffmpeg-extra pepperflashplugin-nonfree xournal ffmpeg mc pavucontrol radiotray python-xdg
-
-#install talk plugin and Filosoft OO speller
 cd /tmp
 wget https://dl.google.com/linux/direct/google-talkplugin_current_amd64.deb
-apt install -y libpango1.0-0
+apt install -y libpango1.0-0 
 dpkg -i google-talkplugin_current_amd64.deb
-dpkg -i oofslinget-addon-estobuntu_4.1-0_all.deb
-
-wget http://raadio.zeroconf.ee/radiotray/local-share-radiotray/estobuntu/bookmarks.xml
-
-head -n -2 bookmarks.xml > bookmark.eesti
-tail -n+3 /usr/share/radiotray/bookmarks.xml >> bookmark.eesti
-mkdir -p /etc/skel/.local/share/radiotray/
-cp bookmark.eesti /etc/skel/.local/share/radiotray/bookmarks.xml
-
 
 #fun for kids
 apt -y install  tuxpaint tuxpaint-config tuxpaint-plugins-default tuxtype childsplay childsplay-alphabet-sounds-en-gb gcompris gcompris-sound-en
 
+ENDSCRIPT
 
-
-# Estonian (basic support)
-apt install -y language-pack-et language-pack-et-base language-pack-gnome-et language-pack-gnome-et-base libreoffice-l10n-et firefox-locale-et libreoffice-help-et thunderbird-locale-et
-
-# These are extra packages Language Support would pop up a window about if 
-# not included.
-apt install -y libreoffice-l10n-en-gb libreoffice-help-en-gb libreoffice-l10n-en-za libreoffice-help-en-us poppler-data openoffice.org-hyphenation hunspell-en-ca mythes-en-au thunderbird-locale-en-gb myspell-en-za hyphen-en-us thunderbird-locale-en-us myspell-en-gb myspell-en-au mythes-en-us wbritish hunspell-en-za libreoffice-l10n-en-gb hyphen-en-gb
-
-
-
+cat > edit/tmp/cleanup.sh << ENDSCRIPT
 # Cleanups
 echo "" > /etc/resolv.conf
 rm /etc/apt/apt.conf.d/00proxy
@@ -215,16 +230,53 @@ umount /proc
 #end of chroot
 exit
 ENDSCRIPT
-chmod +x edit/tmp/modifyDisk.sh
+chmod +x edit/tmp/*.sh
 
-chroot edit ./tmp/modifyDisk.sh
+chroot edit ./tmp/prepare.sh
+
+if [[ $ID ]] 
+then
+  chroot edit ./tmp/addID.sh
+fi
+
+if [[ $LO ]]
+then 
+  chroot edit ./tmp/libreoffice.sh
+fi
+
+if [[ $EST ]]
+then
+  chroot edit ./tmp/estonian_packages.sh
+fi
+
+if [[ $MATE ]]
+then
+  chroot edit ./tmp/mate.sh
+fi
+
+if [[ $EXTRA ]]
+then
+  chroot edit ./tmp/extra.sh
+fi
+
+
+chroot edit ./tmp/cleanup.sh
 
 umount edit/dev
 
 
 # setting default language
 # 16.04 LTS: seems broken (for legacy boot mode), no known solution. English is still the default.
-echo et > extract-cd/isolinux/lang
+
+#cd gfxboot-theme-ubuntu-0.20.1
+#cd po
+#ln -sf et.po et_EE.po
+#cd ..
+#make DEFAULT_LANG="et_EE"
+#cd ..
+#echo et > extract-cd/isolinux/lang
+#cp -af gfxboot-theme-ubuntu-0.20.1/boot/* extract-cd/isolinux/
+#sed -i "/default_keymap = {/a \'et\': \'et\'," edit/usr/lib/ubiquity/ubiquity/misc.py
 
 
 # Re-creation of "manifest" file
@@ -243,29 +295,27 @@ cd extract-cd
 # Localizing the UEFI boot
 sed -i '6i    loadfont /boot/grub/fonts/unicode.pf2' boot/grub/grub.cfg
 sed -i '7i    set locale_dir=$prefix/locale' boot/grub/grub.cfg
-sed -i '8i    set lang=et_EE' boot/grub/grub.cfg
+#sed -i '8i    set lang=et_EE' boot/grub/grub.cfg
 sed -i '9i    insmod gettext' boot/grub/grub.cfg
-sed -i 's%splash%splash debian-installer/locale=et_EE keyboard-configuration/layoutcode=et console-setup/layoutcode=et%' boot/grub/grub.cfg
+#sed -i 's%splash%splash debian-installer/locale=et_EE keyboard-configuration/layoutcode=et console-setup/layoutcode=et%' boot/grub/grub.cfg
 sed -i 's/Try Ubuntu without installing/Proovi ilma paigaldamiseta/' boot/grub/grub.cfg
 sed -i 's/Install Ubuntu/Paigalda Ubuntu/' boot/grub/grub.cfg
 sed -i 's/OEM install (for manufacturers)/OEM-paigaldus (arvutitootjatele)/' boot/grub/grub.cfg
 sed -i 's/Check disc for defects/Kontrolli kettavigu/' boot/grub/grub.cfg
 
 #This is not a good solution, it mixes keyboard setting completely - set language form install splash
+#sed -i 's%splash%splash debian-installer/locale=et_EE.UTF-8 keyboard-configuration/layoutcode=et console-setup/layoutcode=et%' boot/grub/loopback.cfg
+#sed -i 's%splash%splash debian-installer/locale=et_EE.UTF-8 keyboard-configuration/layoutcode=et console-setup/layoutcode=et%' isolinux/txt.cfg
 #sed -i 's/Try Ubuntu without installing/Proovi ilma paigaldamiseta/' boot/grub/loopback.cfg
 #sed -i 's/Try Ubuntu without installing/Proovi ilma paigaldamiseta/' isolinux/txt.cfg
 #sed -i 's/Install Ubuntu/Paigalda Ubuntu/' boot/grub/loopback.cfg
 #sed -i 's/Install Ubuntu/Paigalda Ubuntu/' isolinux/txt.cfg
-#sed -i 's%splash%splash debian-installer/locale=et_EE.UTF-8 keyboard-configuration/layoutcode=et console-setup/layoutcode=et%' boot/grub/loopback.cfg
-#sed -i 's%splash%splash debian-installer/locale=et_EE.UTF-8 keyboard-configuration/layoutcode=et console-setup/layoutcode=et%' isolinux/txt.cfg
 
 mkdir -p boot/grub/locale/
 mkdir -p boot/grub/fonts/
 
 #cp -a /boot/grub/locale/et.mo boot/grub/locale/
 cp -a /boot/grub/fonts/unicode.pf2 boot/grub/fonts/
-
-sed -i 's/ubuntu-desktop/${install_desktop}/' preseed/ubuntu.seed
 
 echo "d-i debian-installer/locale string et_EE.UTF-8" >> preseed/ubuntu.seed
 echo "d-i keyboard-configuration/xkb-keymap select et" >> preseed/ubuntu.seed
