@@ -5,23 +5,58 @@
 #
 # License CC-BY-SA 3.0: http://creativecommons.org/licenses/by-sa/3.0/
 
+#------
+# Variables'n'stuff
+#------
+
+#local apt-cacher-ng url
+export proxy_url="http://127.0.0.1:3142"
+
+#nameserver
+export NAMESERVER="8.8.8.8"
+
+#Ubuntu general package mirror
+export MIRROR="http://ftp.estpak.ee/pub/ubuntu/"
+
+#what release we're working on
+export RELEASE="xenial"
+
+
+#input ISO file 
+export iso_file="ubuntu-16.04.1-desktop-amd64.iso"
+
+#IMAGE NAME as it apears in ISO file (file <iso_image>)
+export IMAGE_NAME="Ubuntu 16.04 LTS"
+
+#output ISO file
+export output_file="ubuntu-16.04.1-amd64-estremix.iso"
+
+#visible name of the new disk in file explorer (max 32char)
+export NEWIMAGE_NAME="Ubuntu Remix 16.04.1 LTS amd64"
+
+#packages to remove, primarly privacy leaking packages
+export REMOVE_PACKAGES="activity-log-manager-common python-zeitgeist rhythmbox-plugin-zeitgeist zeitgeist zeitgeist-core zeitgeist-datahub"
+
+#packages to install when EXTRA is selected:
+#note: pepperflashplugin installs Google Chrome
+export EXTRA_PACKAGES="libdvdcss2 vlc mplayer mplayer-fonts smplayer smtube smplayer-themes smplayer-l10n cups-pdf gimp gimp-data-extras inkscape chromium-browser chromium-browser-l10n chromium-codecs-ffmpeg-extra pepperflashplugin-nonfree xournal ffmpeg mc pavucontrol radiotray python-xdg"
+#EXTRA includes some stuff for kids also:
+export KIDS_PACKAGES="tuxpaint tuxpaint-config tuxpaint-plugins-default tuxtype childsplay childsplay-alphabet-sounds-en-gb gcompris gcompris-sound-en"
+
+#name for Estonian Speller file in current directory
+export ESTONIAN_SPELLER="oofslinget-addon-estobuntu_4.1-0_all.deb"
+
+#------
+#Check environment and make selections
+#------
+
+
 # Make sure only root can run our script
 if [ "$(id -u)" != "0" ]; then
    echo "This script must be run as root" 1>&2
    exit 1
 fi
 
-#local apt-cacher-ng url
-proxy_url="http://127.0.0.1:3142"
-
-#input ISO file 
-export iso_file=ubuntu-16.04.1-desktop-amd64.iso
-
-#output ISO file
-export output_file=ubuntu-16.04.1-amd64-estremix.iso
-
-#visible name of the disk in file explorer
-export IMAGE_NAME="Ubuntu Estonian Remix 16.04.1 LTS amd64"
 
 if [ ! -f $iso_file ]; then
   echo No input ISO file. 
@@ -35,8 +70,8 @@ cmd=(dialog --separate-output --checklist "Select remix options:" 22 76 16)
 options=(ID "Install Estonian ID Software" on    # any option can be set to default to "on"
          EST "Filosoft speller for LibreOffice and Estonian langpakcs" on
          LO "Newest LibreOffice software" off
-         MATE "Set MATE as desktop environment (remove Unity)" off
-	 EXTRA "Video players, codecs, for kids etc" off
+         REPLACE "Replace desktop system (remove Unity) - select in next step" off
+	 EXTRA "Video players, codecs, Chromium, for kids etc" off
 	 PROXY "Use local apt-cacher-ng proxy" off)
 choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
 clear
@@ -52,8 +87,8 @@ do
         EST)
             EST=1
             ;;
-        MATE)
-            MATE=1
+        REPLACE)
+            REPLACE=1
             ;;
         EXTRA)
             EXTRA=1
@@ -64,6 +99,53 @@ do
     esac
 done
 
+if [[ $REPLACE ]]
+then
+#lubuntu-desktop ubuntu-mate-desktop kubuntu-desktop xubuntu-desktop ubuntu-gnome-desktop edubuntu-desktop-gnome ubuntustudio-desktop
+ cmd=(dialog --radiolist "select desktop system" 22 76  16)
+ options=(DEFAULT "Do not change, leave default (Unity)" on
+	  MATE "Mate desktop" off
+          GNOME "Gnome desktop" off
+          KDE "KDE system" off
+          LXCD "LXCD desktop" off
+          XFCE "Xfce system" off
+          EDU "Edubuntu gnome" off
+          STUDIO "Ubuntu studio set" off)
+ choice=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty)
+ clear
+ case $choice in
+	MATE)
+	  desktop_system="ubuntu-mate-desktop"
+	  ;;
+	GNOME)
+	  desktop_system="ubuntu-gnome-desktop"
+	  ;;
+	KDE)
+	  desktop_system="kubuntu-desktop"
+	  ;;
+	LXCD)
+	  desktop_system="lubuntu-desktop"
+	  ;;
+	XFCE)
+	  desktop_system="xubuntu-desktop"
+	  ;;
+	EDU)
+	  desktop_system="edubuntu-desktop-gnome"
+	  ;;
+	STUDIO)
+	  desktop_system="ubuntustudio-desktop"
+	  ;;
+	*)
+	  desktop_system=""
+          REPLACE=0
+	  ;;
+  esac
+ export desktop_system
+fi
+
+#-------
+# Unpack ISO and prepare for modification
+#-------
 
 
 echo "removing old directories"
@@ -83,12 +165,16 @@ cp -a squashfs/* edit/
 # sudo mv squashfs-root edit
 # I've not noticed difference in the end result, cp seems faster
 mount --bind /dev/ edit/dev
-cp oofslinget-addon-estobuntu_4.1-0_all.deb edit/tmp/
+cp ${ESTONIAN_SPELLER} edit/tmp/
 #cp splash.pcx extract-cd/isolinux/splash.pcx
 
-echo Chrooting and executing upgrade tasks
+#--------
+#Image modifing scripts
+#--------
+
 cat > edit/tmp/addID.sh << ENDSCRIPT
 #add ID-card repository GPG key
+#key derived from https://installer.id.ee/media/install-scripts/install-open-eid.sh
 apt-key add <<EOF
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 Comment: GPGTools - https://gpgtools.org
@@ -144,7 +230,7 @@ K2czbpReKw==
 -----END PGP PUBLIC KEY BLOCK-----
 EOF
 cat >> /etc/apt/sources.list.d/estID.list <<EOF
-deb https://installer.id.ee/media/ubuntu/ xenial main
+deb https://installer.id.ee/media/ubuntu/ ${RELEASE} main
 EOF
 apt update
 #install Estonian ID-card packages
@@ -161,60 +247,57 @@ export LC_ALL=C
 service dbus start
 
 #configure connectivity
-echo "nameserver 8.8.8.8" > /etc/resolv.conf
+echo "nameserver ${NAMESERVER}" > /etc/resolv.conf
 
 #add repositories
 cat >> /etc/apt/sources.list.d/estmix.list <<EOF
-deb http://ftp.estpak.ee/pub/ubuntu/ xenial universe
-deb http://ftp.estpak.ee/pub/ubuntu/ xenial-updates universe
-deb http://ftp.estpak.ee/pub/ubuntu/ xenial multiverse
-deb http://ftp.estpak.ee/pub/ubuntu/ xenial-updates multiverse
-deb http://archive.canonical.com/ubuntu xenial partner
-deb http://ftp.estpak.ee/pub/ubuntu/ xenial-security universe
-deb http://ftp.estpak.ee/pub/ubuntu/ xenial-security multiverse
+deb ${MIRROR} ${RELEASE} universe
+deb ${MIRROR} ${RELEASE}-updates universe
+deb ${MIRROR} ${RELEASE} multiverse
+deb ${MIRROR} ${RELEASE}-updates multiverse
+deb http://archive.canonical.com/ubuntu ${RELEASE} partner
+deb ${MIRROR} ${RELEASE}-security universe
+deb ${MIRROR} ${RELEASE}-security multiverse
 EOF
 
 #update package lists
 apt update
+
+#REMOVE some privacy leaking(?) pakcages
+apt -y autoremove --purge ${REMOVE_PACKAGES}
 
 ENDSCRIPT
 
 cat > edit/tmp/libreoffice.sh << ENDSCRIPT
 
 #newest libreoffice
-add-apt-repository -y ppa:libreoffice/ppa && apt-get update && apt-get -y dist-upgrade && apt-get -y install libreoffice libreoffice-help-et libreoffice-l10n-et libreoffice-pdfimport libreoffice-nlpsolver libreoffice-ogltrans libreoffice-report-builder libreoffice-style-galaxy libreoffice-templates && apt-get -y remove libreoffice-style-tango && ldconfig && dpkg --configure -a && apt-get clean
+add-apt-repository -y ppa:libreoffice/ppa && apt update && apt -y dist-upgrade && apt -y install libreoffice libreoffice-help-et libreoffice-l10n-et libreoffice-pdfimport libreoffice-nlpsolver libreoffice-ogltrans libreoffice-report-builder libreoffice-style-galaxy libreoffice-templates && apt -y remove libreoffice-style-tango && ldconfig && dpkg --configure -a && apt clean
 ENDSCRIPT
 
 
 cat > edit/tmp/estonian_packages.sh << ENDSCRIPT
 # Estonian (basic support)
 apt install -y language-pack-et language-pack-et-base language-pack-gnome-et language-pack-gnome-et-base libreoffice-l10n-et firefox-locale-et libreoffice-help-et thunderbird-locale-et libreoffice-java-common
-dpkg -i tmp/oofslinget-addon-estobuntu_4.1-0_all.deb
+dpkg -i tmp/${ESTONIAN_SPELLER}
 ENDSCRIPT
 
-cat > edit/tmp/mate.sh << ENDSCRIPT
+cat > edit/tmp/replace.sh << ENDSCRIPT
 #remove Unity and accompaning packages
 apt install -y tasksel
 apt purge -y unity* compiz* gnome* ubuntuone* accountsservice-*
 #remove some privacy concerned packages
-apt -y autoremove --purge activity-log-manager-common python-zeitgeist rhythmbox-plugin-zeitgeist zeitgeist zeitgeist-core zeitgeist-datahub
-tasksel install ubuntu-mate-desktop
+tasksel install  ${desktop_system}
+echo DONE
 apt -y autoremove
 
-#install MATE
-#apt install -y ubuntu-mate-desktop
 ENDSCRIPT
 
 cat > edit/tmp/extra.sh << ENDSCRIPT
 #extra packages, like mediaplayer packages, browser and gimp
-apt -y install libdvdcss2 vlc mplayer mplayer-fonts smplayer smtube smplayer-themes smplayer-l10n cups-pdf gimp gimp-data-extras inkscape chromium-browser chromium-browser-l10n chromium-codecs-ffmpeg-extra pepperflashplugin-nonfree xournal ffmpeg mc pavucontrol radiotray python-xdg
-cd /tmp
-wget https://dl.google.com/linux/direct/google-talkplugin_current_amd64.deb
-apt install -y libpango1.0-0 
-dpkg -i google-talkplugin_current_amd64.deb
+apt -y install ${EXTRA_PACKAGES}
 
 #fun for kids
-apt -y install  tuxpaint tuxpaint-config tuxpaint-plugins-default tuxtype childsplay childsplay-alphabet-sounds-en-gb gcompris gcompris-sound-en
+apt -y install  ${KIDS_PACKAGES}
 
 ENDSCRIPT
 
@@ -222,7 +305,7 @@ cat > edit/tmp/cleanup.sh << ENDSCRIPT
 # Cleanups
 echo "" > /etc/resolv.conf
 rm -f /etc/apt/apt.conf.d/00proxy
-apt-get clean
+apt clean
 
 rm -rf /tmp/*
 rm -rf /var/cache/apt-xapian-index/*
@@ -236,6 +319,11 @@ umount /proc
 #end of chroot
 exit
 ENDSCRIPT
+
+#--------
+#Call modify scripts as selected
+#--------
+
 chmod +x edit/tmp/*.sh
 
 chroot edit ./tmp/prepare.sh
@@ -261,9 +349,9 @@ then
   chroot edit ./tmp/estonian_packages.sh
 fi
 
-if [[ $MATE ]]
+if [[ $REPLACE ]]
 then
-  chroot edit ./tmp/mate.sh
+  chroot edit ./tmp/replace.sh
 fi
 
 if [[ $EXTRA ]]
@@ -276,6 +364,10 @@ chroot edit ./tmp/cleanup.sh
 
 umount edit/dev
 
+
+#---------
+#Construct new ISO file, modifiyng some locales, etc
+#---------
 
 # setting default language
 # 16.04 LTS: seems broken (for legacy boot mode), no known solution. English is still the default.
@@ -299,9 +391,8 @@ chroot edit dpkg-query -W --showformat='${Package} ${Version}\n' > extract-cd/ca
 rm -f extract-cd/casper/filesystem.squashfs
 mksquashfs edit extract-cd/casper/filesystem.squashfs
 # Create the disk image itself
-export IMAGE_NAME="Ubuntu 16.04 LTS"
-sed -i -e "s/$IMAGE_NAME/$IMAGE_NAME (Estonian Remix)/" extract-cd/README.diskdefines
-sed -i -e "s/$IMAGE_NAME/$IMAGE_NAME (Estonian Remix)/" extract-cd/.disk/info
+sed -i -e "s/$IMAGE_NAME/$NEWIMAGE_NAME/" extract-cd/README.diskdefines
+sed -i -e "s/$IMAGE_NAME/$NEWIMAGE_NAME/" extract-cd/.disk/info
 
 cd extract-cd
 # Localizing the UEFI boot
@@ -329,6 +420,7 @@ mkdir -p boot/grub/fonts/
 #cp -a /boot/grub/locale/et.mo boot/grub/locale/
 cp -a /boot/grub/fonts/unicode.pf2 boot/grub/fonts/
 
+#help users with selecting some Estonial locales
 echo "d-i debian-installer/locale string et_EE.UTF-8" >> preseed/ubuntu.seed
 echo "d-i keyboard-configuration/xkb-keymap select et" >> preseed/ubuntu.seed
 echo "d-i keyboard-configuration/layout string \"Estonian\"" >> preseed/ubuntu.seed
@@ -341,7 +433,7 @@ mv -f ../md5sum.txt ./
 sed -i -e '/isolinux/d' md5sum.txt
 # Different volume name than the IMAGE_NAME above.
 # 16.04 LTS
-genisoimage -r -V "$IMAGE_NAME" -cache-inodes -J -l -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot -o ../${output_file} .
+genisoimage -r -V "$NEWIMAGE_NAME" -cache-inodes -J -l -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot -o ../${output_file} .
 cd ..
 isohybrid --uefi ${output_file}
 umount squashfs/
