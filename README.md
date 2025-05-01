@@ -24,4 +24,4 @@ Tõmmise katseversiooni leiab [siit](https://linux.infoaed.ee/).
 
 ## Tõmmise lugu
 
-Eesti oludele kohandatud Ubuntu kõrgajaks on Estobuntu väljaandmine tervikliku opsüsteemina 2007-2014. Kuna sellises mahuses kohanduste testimine iga Ubuntu väljalaske jaoks polnud toona jätkusuutlik, siis ühtlustati projekt Ubuntu kaubamärgi nõuetega ja seati eesmärgiks minimalistliku eestikeelse Ubuntu pakkumine ilma eraldi kujunduse jm lisadeta. Varem vabatahtlike projektijuhtide vedamisel sündunud Estobuntu väljaandmise koordineerimine usaldati Tallinna Tehnikaülikooli IT-kolledžile.
+Eesti oludele kohandatud Ubuntu kõrgajaks on Estobuntu väljaandmine tervikliku opsüsteemina 2007-2014. Kuna sellises mahus kohanduste testimine iga Ubuntu väljalaske jaoks polnud toona jätkusuutlik, siis ühtlustati projekt Ubuntu kaubamärgi nõuetega ja seati eesmärgiks minimalistliku eestikeelse Ubuntu pakkumine eraldi kujunduse jm lisadeta. Varem vabatahtlike projektijuhtide vedamisel sündunud Estobuntu väljaandmise koordineerimine usaldati Tallinna Tehnikaülikooli IT-kolledžile.
