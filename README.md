@@ -1,6 +1,10 @@
 # Ubuntu Eesti tõmmis (tuntud ka kui Estobuntu)
 
-Tõmmise katseversiooni leiab [siit](https://linux.infoaed.ee/).
+Üldotstarbeline versioon Ubuntu pikaajalise toega väljalaskest, mis lihtsustab vabavaralise opsüsteemi paigaldamist ja kasutuselevõttu.
+
+Tõmmise katseversiooni leiab [siit](https://linux.infoaed.ee/), tõlkijad võiks vaadata [siia](https://translations.launchpad.net/ubuntu/noble/+lang/et) ja [siia](https://hosted.weblate.org/projects/ubuntu-desktop-translations/-/et/).
+
+Vigadest ja tekkinud ideedest võib anda märku [siinsamas ülal](https://github.com/estobuntu/ubuntu-estonian-remix/issues).
 
 ## Tõmmise skoop
 
